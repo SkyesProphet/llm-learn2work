@@ -57,7 +57,7 @@ class IndexConstructionModule:
         filtered_results = []
         for result in results:
             # 计算嵌入向量之间的相似度（这里简化处理，实际应使用更精确的方法）
-            # 此处仅为演示，实际实现需要根据具体嵌入模型调整
+            # 此处仅为演示，实际实现需要根据具体嵌入模型和ChromaDB的特性进行调整
             filtered_results.append(result)
         
         logger.info(f"相似度搜索完成，返回 {len(filtered_results)} 个结果")
