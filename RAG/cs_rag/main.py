@@ -22,7 +22,7 @@ class RAGSystem:
         self.data_prep_module = DataPreparationModule()
         self.index_module = IndexConstructionModule()
         self.retrieval_module = None  # 在索引构建后初始化
-        self.gen_module = GenerationIntegrationModule()
+        self.gen_module = None  # 延迟初始化，需要retrieval_module作为参数
         
         logger.info("RAG系统初始化完成")
 
@@ -51,6 +51,9 @@ class RAGSystem:
                     vectorstore=self.index_module.vectorstore,
                     chunks=chunks
                 )
+                
+                # 初始化生成集成模块（需要retrieval_module）
+                self.gen_module = GenerationIntegrationModule(self.retrieval_module)
                 
             except Exception as e:
                 logger.error(f"加载现有索引失败: {str(e)}")
@@ -85,6 +88,9 @@ class RAGSystem:
                 chunks=chunks
             )
             
+            # 初始化生成集成模块
+            self.gen_module = GenerationIntegrationModule(self.retrieval_module)
+            
             logger.info("新索引构建完成")
             
         except Exception as e:
@@ -96,36 +102,16 @@ class RAGSystem:
         try:
             logger.info(f"收到查询: {user_query}")
             
-            # 1. 智能查询重写
-            rewritten_query = self.gen_module.rewrite_query(user_query)
-            if rewritten_query != user_query:
-                logger.info(f"查询已重写: {user_query} -> {rewritten_query}")
+            # 检查生成模块是否已初始化
+            if not self.gen_module:
+                logger.error("生成模块未初始化，请先调用initialize_system")
+                return "系统未正确初始化，请稍后再试。"
             
-            # 2. 查询路由
-            route_type = self.gen_module.route_query(rewritten_query)
-            logger.info(f"查询路由类型: {route_type}")
-            
-            # 3. 执行混合检索
-            retrieval_results = self.retrieval_module.hybrid_retrieval(rewritten_query)
-            
-            # 4. 检查知识充分性
-            if not self.retrieval_module.is_knowledge_sufficient(retrieval_results, rewritten_query):
-                return "对不起，暂时不具备相关的知识，请重新提问，或更新知识库。"
-            
-            # 5. 格式化上下文
-            context_str = self.retrieval_module.format_context_for_llm(retrieval_results)
-            
-            # 6. 根据路由类型生成回答
-            if route_type == 'detail':
-                answer = self.gen_module.generate_detailed_answer(rewritten_query, retrieval_results)
-            elif route_type == 'list':
-                # 对于列表类问题，使用基础回答但强调列举
-                answer = self.gen_module.generate_basic_answer(rewritten_query, retrieval_results)
-            else:  # general
-                answer = self.gen_module.generate_basic_answer(rewritten_query, retrieval_results)
+            # 使用新的多步工作流API
+            result = self.gen_module.generate_answer(user_query)
             
             logger.info("查询处理完成")
-            return answer
+            return result["answer"]
             
         except Exception as e:
             logger.error(f"处理查询时发生错误: {str(e)}")
